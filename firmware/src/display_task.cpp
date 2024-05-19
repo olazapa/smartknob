@@ -1,6 +1,7 @@
 #if SK_DISPLAY
 #include "display_task.h"
 #include "semaphore_guard.h"
+#include "util.h"
 
 LV_FONT_DECLARE(roboto_light_60);
 LV_FONT_DECLARE(roboto_light_24);
@@ -218,7 +219,7 @@ void DisplayTask::run() {
           SemaphoreGuard lock(mutex_);
           ledcWrite(LEDC_CHANNEL_LCD_BACKLIGHT, brightness_);
         }
-        delay(2);
+        delay(5);
     }
 }
 
@@ -228,7 +229,7 @@ QueueHandle_t DisplayTask::getKnobStateQueue() {
 
 void DisplayTask::setBrightness(uint16_t brightness) {
   SemaphoreGuard lock(mutex_);
-  brightness_ = brightness;
+  brightness_ = brightness >> (16 - SK_BACKLIGHT_BIT_DEPTH);
 }
 
 void DisplayTask::setLogger(Logger* logger) {
