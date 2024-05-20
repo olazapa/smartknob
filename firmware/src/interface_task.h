@@ -5,6 +5,7 @@
 
 #include "configuration.h"
 #include "display_task.h"
+#include "connectivity_task.h"
 #include "logger.h"
 #include "motor_task.h"
 #include "serial/serial_protocol_plaintext.h"
@@ -27,7 +28,7 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
     friend class Task<InterfaceTask>; // Allow base Task to invoke protected run()
 
     public:
-        InterfaceTask(const uint8_t task_core, MotorTask& motor_task, DisplayTask* display_task);
+        InterfaceTask(const uint8_t task_core, MotorTask& motor_task, DisplayTask* display_task, ConnectivityTask& connectivity_task);
         virtual ~InterfaceTask();
 
         SemaphoreHandle_t * i2c_mutex;
@@ -46,6 +47,7 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
     #endif
         MotorTask& motor_task_;
         DisplayTask* display_task_;
+        ConnectivityTask& connectivity_task_;
         char buf_[128];
 
         SemaphoreHandle_t mutex_;

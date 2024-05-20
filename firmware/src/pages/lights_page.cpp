@@ -5,7 +5,18 @@ PB_SmartKnobConfig * LightsPage::getPageConfig() {
 }
 
 void LightsPage::handleState(PB_SmartKnobState state) {
-    // handle state here
+    if (last_published_position != state.current_position) {
+        if (millis() - last_publish_time > 500) {
+            int current_position = state.current_position;
+            Message msg = {
+                .trigger_name = "lights",
+                .trigger_value = current_position
+            };
+            connectivity_task_.sendMqttMessage(msg);
+            last_publish_time = millis();
+            last_published_position = state.current_position;
+        }
+    }
 }
 
 void LightsPage::handleUserInput(input_t input, int input_data, PB_SmartKnobState state) {    

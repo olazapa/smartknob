@@ -4,6 +4,7 @@
 #include "display_task.h"
 #include "interface_task.h"
 #include "motor_task.h"
+#include "connectivity_task.h"
 
 Configuration config;
 
@@ -14,9 +15,9 @@ static DisplayTask* display_task_p = &display_task;
 static DisplayTask* display_task_p = nullptr;
 #endif
 static MotorTask motor_task(1, config);
+static ConnectivityTask connectivity_task(0);
 
-
-InterfaceTask interface_task(0, motor_task, display_task_p);
+InterfaceTask interface_task(0, motor_task, display_task_p, connectivity_task);
 
 void setup() {
   #if SK_DISPLAY
@@ -36,6 +37,8 @@ void setup() {
 
   motor_task.setLogger(&interface_task);
   motor_task.begin();
+
+  connectivity_task.begin();
 
   // Free up the Arduino loop task
   vTaskDelete(NULL);

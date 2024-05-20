@@ -2,10 +2,11 @@
 #include "page.h"
 #include "views/view.h"
 #include "../motor_task.h"
+#include "../connectivity_task.h"
 
 class LightsPage: public Page {
     public:
-        LightsPage() : Page() {}
+        LightsPage(ConnectivityTask& connectivity_task) : Page(), connectivity_task_(connectivity_task) {}
 
         ~LightsPage(){}
 
@@ -14,6 +15,8 @@ class LightsPage: public Page {
         void handleUserInput(input_t input, int input_data, PB_SmartKnobState state) override;
     
     private:
+        ConnectivityTask& connectivity_task_;
+
         uint32_t last_publish_time;
         uint32_t last_published_position;
         
