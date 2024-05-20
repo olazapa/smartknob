@@ -19,7 +19,21 @@ typedef struct _PB_Log {
     char msg[256];
 } PB_Log;
 
+typedef struct _PB_MenuEntry {
+    char description[20];
+    char icon[4];
+} PB_MenuEntry;
+
+typedef struct _PB_ViewConfig {
+    int32_t view_type;
+    char description[41];
+    pb_size_t menu_entries_count;
+    PB_MenuEntry menu_entries[8];
+} PB_ViewConfig;
+
 typedef struct _PB_SmartKnobConfig {
+    bool has_view_config;
+    PB_ViewConfig view_config;
     /* *
  Set the integer position.
 
@@ -57,6 +71,7 @@ typedef struct _PB_SmartKnobConfig {
 
  If this is less than min_position, bounds will be disabled. */
     int32_t max_position;
+    bool infinite_scroll;
     /* * The angular "width" of each position/detent, in radians. */
     float position_width_radians;
     /* *
@@ -81,13 +96,6 @@ typedef struct _PB_SmartKnobConfig {
 
  This defines how hysteresis is applied to positions, which is why values > */
     float snap_point;
-    /* *
- Arbitrary 50-byte string representing this "config". This can be used to identify major
- config/mode changes. The value will be echoed back to the host via a future State's
- embedded config field so the host can use this value to determine the mode that was
- in effect at the time of the State snapshot instead of having to infer it from the
- other config fields. */
-    char text[51];
     /* *
  For a "magnetic" detent mode - where not all positions should have detents - this
  specifies which positions (up to 5) have detents enabled. The knob will feel like it
@@ -210,7 +218,9 @@ extern "C" {
 #define PB_Ack_init_default                      {0}
 #define PB_Log_init_default                      {""}
 #define PB_SmartKnobState_init_default           {0, 0, false, PB_SmartKnobConfig_init_default, 0}
-#define PB_SmartKnobConfig_init_default          {0, 0, 0, 0, 0, 0, 0, 0, 0, "", 0, {0, 0, 0, 0, 0}, 0, 0}
+#define PB_ViewConfig_init_default               {0, "", 0, {PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default, PB_MenuEntry_init_default}}
+#define PB_MenuEntry_init_default                {"", ""}
+#define PB_SmartKnobConfig_init_default          {false, PB_ViewConfig_init_default, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0}
 #define PB_RequestState_init_default             {0}
 #define PB_PersistentConfiguration_init_default  {0, false, PB_MotorCalibration_init_default, false, PB_StrainCalibration_init_default}
 #define PB_MotorCalibration_init_default         {0, 0, 0, 0}
@@ -220,7 +230,9 @@ extern "C" {
 #define PB_Ack_init_zero                         {0}
 #define PB_Log_init_zero                         {""}
 #define PB_SmartKnobState_init_zero              {0, 0, false, PB_SmartKnobConfig_init_zero, 0}
-#define PB_SmartKnobConfig_init_zero             {0, 0, 0, 0, 0, 0, 0, 0, 0, "", 0, {0, 0, 0, 0, 0}, 0, 0}
+#define PB_ViewConfig_init_zero                  {0, "", 0, {PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero, PB_MenuEntry_init_zero}}
+#define PB_MenuEntry_init_zero                   {"", ""}
+#define PB_SmartKnobConfig_init_zero             {false, PB_ViewConfig_init_zero, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {0, 0, 0, 0, 0}, 0, 0}
 #define PB_RequestState_init_zero                {0}
 #define PB_PersistentConfiguration_init_zero     {0, false, PB_MotorCalibration_init_zero, false, PB_StrainCalibration_init_zero}
 #define PB_MotorCalibration_init_zero            {0, 0, 0, 0}
@@ -229,19 +241,25 @@ extern "C" {
 /* Field tags (for use in manual encoding/decoding) */
 #define PB_Ack_nonce_tag                         1
 #define PB_Log_msg_tag                           1
-#define PB_SmartKnobConfig_position_tag          1
-#define PB_SmartKnobConfig_sub_position_unit_tag 2
-#define PB_SmartKnobConfig_position_nonce_tag    3
-#define PB_SmartKnobConfig_min_position_tag      4
-#define PB_SmartKnobConfig_max_position_tag      5
-#define PB_SmartKnobConfig_position_width_radians_tag 6
-#define PB_SmartKnobConfig_detent_strength_unit_tag 7
-#define PB_SmartKnobConfig_endstop_strength_unit_tag 8
-#define PB_SmartKnobConfig_snap_point_tag        9
-#define PB_SmartKnobConfig_text_tag              10
-#define PB_SmartKnobConfig_detent_positions_tag  11
-#define PB_SmartKnobConfig_snap_point_bias_tag   12
-#define PB_SmartKnobConfig_led_hue_tag           13
+#define PB_MenuEntry_description_tag             1
+#define PB_MenuEntry_icon_tag                    2
+#define PB_ViewConfig_view_type_tag              1
+#define PB_ViewConfig_description_tag            2
+#define PB_ViewConfig_menu_entries_tag           3
+#define PB_SmartKnobConfig_view_config_tag       1
+#define PB_SmartKnobConfig_position_tag          2
+#define PB_SmartKnobConfig_sub_position_unit_tag 3
+#define PB_SmartKnobConfig_position_nonce_tag    4
+#define PB_SmartKnobConfig_min_position_tag      5
+#define PB_SmartKnobConfig_max_position_tag      6
+#define PB_SmartKnobConfig_infinite_scroll_tag   7
+#define PB_SmartKnobConfig_position_width_radians_tag 8
+#define PB_SmartKnobConfig_detent_strength_unit_tag 9
+#define PB_SmartKnobConfig_endstop_strength_unit_tag 10
+#define PB_SmartKnobConfig_snap_point_tag        11
+#define PB_SmartKnobConfig_detent_positions_tag  12
+#define PB_SmartKnobConfig_snap_point_bias_tag   13
+#define PB_SmartKnobConfig_led_hue_tag           14
 #define PB_SmartKnobState_current_position_tag   1
 #define PB_SmartKnobState_sub_position_unit_tag  2
 #define PB_SmartKnobState_config_tag             3
@@ -305,22 +323,38 @@ X(a, STATIC,   SINGULAR, UINT32,   press_nonce,       4)
 #define PB_SmartKnobState_DEFAULT NULL
 #define PB_SmartKnobState_config_MSGTYPE PB_SmartKnobConfig
 
+#define PB_ViewConfig_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, INT32,    view_type,         1) \
+X(a, STATIC,   SINGULAR, STRING,   description,       2) \
+X(a, STATIC,   REPEATED, MESSAGE,  menu_entries,      3)
+#define PB_ViewConfig_CALLBACK NULL
+#define PB_ViewConfig_DEFAULT NULL
+#define PB_ViewConfig_menu_entries_MSGTYPE PB_MenuEntry
+
+#define PB_MenuEntry_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, STRING,   description,       1) \
+X(a, STATIC,   SINGULAR, STRING,   icon,              2)
+#define PB_MenuEntry_CALLBACK NULL
+#define PB_MenuEntry_DEFAULT NULL
+
 #define PB_SmartKnobConfig_FIELDLIST(X, a) \
-X(a, STATIC,   SINGULAR, INT32,    position,          1) \
-X(a, STATIC,   SINGULAR, FLOAT,    sub_position_unit,   2) \
-X(a, STATIC,   SINGULAR, UINT32,   position_nonce,    3) \
-X(a, STATIC,   SINGULAR, INT32,    min_position,      4) \
-X(a, STATIC,   SINGULAR, INT32,    max_position,      5) \
-X(a, STATIC,   SINGULAR, FLOAT,    position_width_radians,   6) \
-X(a, STATIC,   SINGULAR, FLOAT,    detent_strength_unit,   7) \
-X(a, STATIC,   SINGULAR, FLOAT,    endstop_strength_unit,   8) \
-X(a, STATIC,   SINGULAR, FLOAT,    snap_point,        9) \
-X(a, STATIC,   SINGULAR, STRING,   text,             10) \
-X(a, STATIC,   REPEATED, INT32,    detent_positions,  11) \
-X(a, STATIC,   SINGULAR, FLOAT,    snap_point_bias,  12) \
-X(a, STATIC,   SINGULAR, INT32,    led_hue,          13)
+X(a, STATIC,   OPTIONAL, MESSAGE,  view_config,       1) \
+X(a, STATIC,   SINGULAR, INT32,    position,          2) \
+X(a, STATIC,   SINGULAR, FLOAT,    sub_position_unit,   3) \
+X(a, STATIC,   SINGULAR, UINT32,   position_nonce,    4) \
+X(a, STATIC,   SINGULAR, INT32,    min_position,      5) \
+X(a, STATIC,   SINGULAR, INT32,    max_position,      6) \
+X(a, STATIC,   SINGULAR, BOOL,     infinite_scroll,   7) \
+X(a, STATIC,   SINGULAR, FLOAT,    position_width_radians,   8) \
+X(a, STATIC,   SINGULAR, FLOAT,    detent_strength_unit,   9) \
+X(a, STATIC,   SINGULAR, FLOAT,    endstop_strength_unit,  10) \
+X(a, STATIC,   SINGULAR, FLOAT,    snap_point,       11) \
+X(a, STATIC,   REPEATED, INT32,    detent_positions,  12) \
+X(a, STATIC,   SINGULAR, FLOAT,    snap_point_bias,  13) \
+X(a, STATIC,   SINGULAR, INT32,    led_hue,          14)
 #define PB_SmartKnobConfig_CALLBACK NULL
 #define PB_SmartKnobConfig_DEFAULT NULL
+#define PB_SmartKnobConfig_view_config_MSGTYPE PB_ViewConfig
 
 #define PB_RequestState_FIELDLIST(X, a) \
 
@@ -355,6 +389,8 @@ extern const pb_msgdesc_t PB_ToSmartknob_msg;
 extern const pb_msgdesc_t PB_Ack_msg;
 extern const pb_msgdesc_t PB_Log_msg;
 extern const pb_msgdesc_t PB_SmartKnobState_msg;
+extern const pb_msgdesc_t PB_ViewConfig_msg;
+extern const pb_msgdesc_t PB_MenuEntry_msg;
 extern const pb_msgdesc_t PB_SmartKnobConfig_msg;
 extern const pb_msgdesc_t PB_RequestState_msg;
 extern const pb_msgdesc_t PB_PersistentConfiguration_msg;
@@ -367,6 +403,8 @@ extern const pb_msgdesc_t PB_StrainCalibration_msg;
 #define PB_Ack_fields &PB_Ack_msg
 #define PB_Log_fields &PB_Log_msg
 #define PB_SmartKnobState_fields &PB_SmartKnobState_msg
+#define PB_ViewConfig_fields &PB_ViewConfig_msg
+#define PB_MenuEntry_fields &PB_MenuEntry_msg
 #define PB_SmartKnobConfig_fields &PB_SmartKnobConfig_msg
 #define PB_RequestState_fields &PB_RequestState_msg
 #define PB_PersistentConfiguration_fields &PB_PersistentConfiguration_msg
@@ -375,15 +413,17 @@ extern const pb_msgdesc_t PB_StrainCalibration_msg;
 
 /* Maximum encoded size of messages (where known) */
 #define PB_Ack_size                              6
-#define PB_FromSmartKnob_size                    264
+#define PB_FromSmartKnob_size                    442
 #define PB_Log_size                              258
+#define PB_MenuEntry_size                        26
 #define PB_MotorCalibration_size                 15
 #define PB_PersistentConfiguration_size          47
 #define PB_RequestState_size                     0
-#define PB_SmartKnobConfig_size                  184
-#define PB_SmartKnobState_size                   206
+#define PB_SmartKnobConfig_size                  414
+#define PB_SmartKnobState_size                   436
 #define PB_StrainCalibration_size                22
-#define PB_ToSmartknob_size                      196
+#define PB_ToSmartknob_size                      426
+#define PB_ViewConfig_size                       277
 
 #ifdef __cplusplus
 } /* extern "C" */

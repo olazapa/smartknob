@@ -14,7 +14,6 @@ bool config_eq(PB_SmartKnobConfig& first, PB_SmartKnobConfig& second) {
         && first.position_width_radians == second.position_width_radians
         && first.snap_point == second.snap_point
         && first.sub_position_unit == second.sub_position_unit
-        && strcmp(first.text, second.text) == 0
         && first.detent_positions_count == second.detent_positions_count
         && memcmp(first.detent_positions, second.detent_positions, first.detent_positions_count * sizeof(first.detent_positions[0]))
         && first.snap_point_bias == second.snap_point_bias;

@@ -26,202 +26,8 @@ HX711 scale;
 Adafruit_VEML7700 veml = Adafruit_VEML7700();
 #endif
 
-static PB_SmartKnobConfig configs[] = {
-    // int32_t position;
-    // float sub_position_unit;
-    // uint8_t position_nonce;
-    // int32_t min_position;
-    // int32_t max_position;
-    // float position_width_radians;
-    // float detent_strength_unit;
-    // float endstop_strength_unit;
-    // float snap_point;
-    // char text[51];
-    // pb_size_t detent_positions_count;
-    // int32_t detent_positions[5];
-    // float snap_point_bias;
-    // int8_t led_hue;
-
-    {
-        0,
-        0,
-        0,
-        0,
-        -1, // max position < min position indicates no bounds
-        10 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Unbounded\nNo detents",
-        0,
-        {},
-        0,
-        200,
-    },
-    {
-        0,
-        0,
-        1,
-        0,
-        10,
-        10 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Bounded 0-10\nNo detents",
-        0,
-        {},
-        0,
-        0,
-    },
-    {
-        0,
-        0,
-        2,
-        0,
-        72,
-        10 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Multi-rev\nNo detents",
-        0,
-        {},
-        0,
-        73,
-    },
-    {
-        0,
-        0,
-        3,
-        0,
-        1,
-        60 * PI / 180,
-        1,
-        1,
-        0.55, // Note the snap point is slightly past the midpoint (0.5); compare to normal detents which use a snap point *past* the next value (i.e. > 1)
-        "On/off\nStrong detent",
-        0,
-        {},
-        0,
-        157,
-    },
-    {
-        0,
-        0,
-        4,
-        0,
-        0,
-        60 * PI / 180,
-        0.01,
-        0.6,
-        1.1,
-        "Return-to-center",
-        0,
-        {},
-        0,
-        45,
-    },
-    {
-        127,
-        0,
-        5,
-        0,
-        255,
-        1 * PI / 180,
-        0,
-        1,
-        1.1,
-        "Fine values\nNo detents",
-        0,
-        {},
-        0,
-        219,
-    },
-    {
-        127,
-        0,
-        5,
-        0,
-        255,
-        1 * PI / 180,
-        1,
-        1,
-        1.1,
-        "Fine values\nWith detents",
-        0,
-        {},
-        0,
-        25,
-    },
-    {
-        0,
-        0,
-        6,
-        0,
-        31,
-        8.225806452 * PI / 180,
-        2,
-        1,
-        1.1,
-        "Coarse values\nStrong detents",
-        0,
-        {},
-        0,
-        200,
-    },
-    {
-        0,
-        0,
-        6,
-        0,
-        31,
-        8.225806452 * PI / 180,
-        0.2,
-        1,
-        1.1,
-        "Coarse values\nWeak detents",
-        0,
-        {},
-        0,
-        0,
-    },
-    {
-        0,
-        0,
-        7,
-        0,
-        31,
-        7 * PI / 180,
-        2.5,
-        1,
-        0.7,
-        "Magnetic detents",
-        4,
-        {2, 10, 21, 22},
-        0,
-        73,
-    },
-    {
-        0,
-        0,
-        8,
-        -6,
-        6,
-        60 * PI / 180,
-        1,
-        1,
-        0.55,
-        "Return-to-center\nwith detents",
-        0,
-        {},
-        0.4,
-        157,
-    },
-};
-
 InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, DisplayTask* display_task) : 
-        Task("Interface", 3400, 1, task_core),
+        Task("Interface", 3600, 1, task_core),
         stream_(),
         motor_task_(motor_task),
         display_task_(display_task),
@@ -230,7 +36,17 @@ InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, Dis
         }),
         proto_protocol_(stream_, [this] (PB_SmartKnobConfig& config) {
             applyConfig(config, true);
-        }) {
+        }),
+        main_menu_page_(),
+        more_page_(),
+        lights_page_(),
+        settings_page_([this] () {
+            motor_task_.runCalibration();
+        }),
+        demo_page_([this] (PB_SmartKnobConfig& config) {
+            applyConfig(config, false);
+        })
+        {
     #if SK_DISPLAY
         assert(display_task != nullptr);
     #endif
@@ -242,8 +58,17 @@ InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, Dis
     knob_state_queue_ = xQueueCreate(1, sizeof(PB_SmartKnobState));
     assert(knob_state_queue_ != NULL);
 
+    user_input_queue_ = xQueueCreate(1, sizeof(userInput_t));
+    assert(user_input_queue_ != NULL);
+
     mutex_ = xSemaphoreCreateMutex();
     assert(mutex_ != NULL);
+
+    i2c_mutex_ = xSemaphoreCreateMutex();
+    assert(i2c_mutex_ != NULL);
+    i2c_mutex = &i2c_mutex_;
+
+    display_task_->setI2CMutex(i2c_mutex);
 }
 
 InterfaceTask::~InterfaceTask() {
@@ -274,39 +99,49 @@ void InterfaceTask::run() {
         }
     #endif
 
-    applyConfig(configs[0], false);
     motor_task_.addListener(knob_state_queue_);
+    display_task_ -> setListener(user_input_queue_);
 
-    plaintext_protocol_.init([this] () {
-        changeConfig(true);
-    }, [this] () {
-        if (!configuration_loaded_) {
-            return;
-        }
-        if (strain_calibration_step_ == 0) {
-            log("Strain calibration step 1: Don't touch the knob, then press 'S' again");
-            strain_calibration_step_ = 1;
-        } else if (strain_calibration_step_ == 1) {
-            configuration_value_.strain.idle_value = strain_reading_;
-            snprintf(buf_, sizeof(buf_), "  idle_value=%d", configuration_value_.strain.idle_value);
-            log(buf_);
-            log("Strain calibration step 2: Push and hold down the knob with medium pressure, and press 'S' again");
-            strain_calibration_step_ = 2;
-        } else if (strain_calibration_step_ == 2) {
-            configuration_value_.strain.press_delta = strain_reading_ - configuration_value_.strain.idle_value;
-            configuration_value_.has_strain = true;
-            snprintf(buf_, sizeof(buf_), "  press_delta=%d", configuration_value_.strain.press_delta);
-            log(buf_);
-            log("Strain calibration complete! Saving...");
-            strain_calibration_step_ = 0;
-            if (configuration_->setStrainCalibrationAndSave(configuration_value_.strain)) {
-                log("  Saved!");
-            } else {
-                log("  FAILED to save config!!!");
+    plaintext_protocol_.init(
+        [this] () {
+            setUserInput(
+                {
+                    .inputType = INPUT_FORWARD,
+                    .inputData = NULL
+                },
+                true
+            );
+        },
+        [this] () {
+            if (!configuration_loaded_) {
+                return;
+            }
+            if (strain_calibration_step_ == 0) {
+                log("Strain calibration step 1: Don't touch the knob, then press 'S' again");
+                strain_calibration_step_ = 1;
+            } else if (strain_calibration_step_ == 1) {
+                configuration_value_.strain.idle_value = strain_reading_;
+                snprintf(buf_, sizeof(buf_), "  idle_value=%d", configuration_value_.strain.idle_value);
+                log(buf_);
+                log("Strain calibration step 2: Push and hold down the knob with medium pressure, and press 'S' again");
+                strain_calibration_step_ = 2;
+            } else if (strain_calibration_step_ == 2) {
+                configuration_value_.strain.press_delta = strain_reading_ - configuration_value_.strain.idle_value;
+                configuration_value_.has_strain = true;
+                snprintf(buf_, sizeof(buf_), "  press_delta=%d", configuration_value_.strain.press_delta);
+                log(buf_);
+                log("Strain calibration complete! Saving...");
+                strain_calibration_step_ = 0;
+                if (configuration_->setStrainCalibrationAndSave(configuration_value_.strain)) {
+                    log("  Saved!");
+                } else {
+                    log("  FAILED to save config!!!");
+                }
             }
         }
-    });
+    );
 
+    SerialProtocol* current_protocol;
     // Start in legacy protocol mode
     current_protocol_ = &plaintext_protocol_;
 
@@ -327,13 +162,58 @@ void InterfaceTask::run() {
     plaintext_protocol_.setProtocolChangeCallback(protocol_change_callback);
     proto_protocol_.setProtocolChangeCallback(protocol_change_callback);
 
+    Page* current_page = &main_menu_page_;
+    applyConfig(*current_page->getPageConfig(), false);
+
+    PageChangeCallback page_change_callback = [this, &current_page] (page_t page) {
+        switch (page) {
+            case MAIN_MENU_PAGE:
+                current_page = &main_menu_page_;
+                break;
+            case SETTINGS_PAGE:
+                current_page = &settings_page_;
+                break;
+            case MORE_PAGE:
+                current_page = &more_page_;
+                break;
+            case DEMO_PAGE:
+                current_page = &demo_page_;
+                break;
+            case LIGHTS_PAGE:
+                current_page = &lights_page_;
+                break;
+            default:
+                log("Unknown page requested");
+                break;
+        }
+        applyConfig(*current_page->getPageConfig(), false);
+    };
+
+    main_menu_page_.setPageChangeCallback(page_change_callback);
+    more_page_.setPageChangeCallback(page_change_callback);
+    lights_page_.setPageChangeCallback(page_change_callback);
+    demo_page_.setPageChangeCallback(page_change_callback);
+    settings_page_.setPageChangeCallback(page_change_callback);
+
     // Interface loop:
     while (1) {
         if (xQueueReceive(knob_state_queue_, &latest_state_, 0) == pdTRUE) {
             publishState();
+            current_page->handleState(latest_state_);
         }
 
         current_protocol_->loop();
+
+        userInput_t user_input;
+        if (xQueueReceive(user_input_queue_, &user_input, 0) == pdTRUE) {
+            setUserInput(user_input, true);
+        }
+
+        if (user_input_.inputType > -1) {
+            current_page->handleUserInput(user_input_.inputType, user_input_.inputData, latest_state_);
+            user_input_.inputType = (input_t) -1;
+            user_input_.inputData = NULL;
+        }
 
         std::string* log_string;
         while (xQueueReceive(log_queue_, &log_string, 0) == pdTRUE) {
@@ -355,6 +235,13 @@ void InterfaceTask::run() {
     }
 }
 
+void InterfaceTask::setUserInput(userInput_t user_input, bool playHapticts) {
+    user_input_ = user_input;
+    if (playHapticts) {
+        motor_task_.playHaptic(true);
+    }
+}
+
 void InterfaceTask::log(const char* msg) {
     // Allocate a string for the duration it's in the queue; it is free'd by the queue consumer
     std::string* msg_str = new std::string(msg);
@@ -363,27 +250,12 @@ void InterfaceTask::log(const char* msg) {
     xQueueSendToBack(log_queue_, &msg_str, 0);
 }
 
-void InterfaceTask::changeConfig(bool next) {
-    if (next) {
-        current_config_ = (current_config_ + 1) % COUNT_OF(configs);
-    } else {
-        if (current_config_ == 0) {
-            current_config_ = COUNT_OF(configs) - 1;
-        } else {
-            current_config_ --;
-        }
-    }
-    
-    snprintf(buf_, sizeof(buf_), "Changing config to %d -- %s", current_config_, configs[current_config_].text);
-    log(buf_);
-    applyConfig(configs[current_config_], false);
-}
-
 void InterfaceTask::updateHardware() {
     // How far button is pressed, in range [0, 1]
     float press_value_unit = 0;
 
     #if SK_ALS
+        SemaphoreGuard lock(i2c_mutex_);
         const float LUX_ALPHA = 0.005;
         static float lux_avg;
         float lux = veml.readLux();
@@ -421,9 +293,13 @@ void InterfaceTask::updateHardware() {
                             pressed = true;
                             press_count_++;
                             publishState();
-                            if (!remote_controlled_) {
-                                changeConfig(true);
-                            }
+                            setUserInput(
+                                {
+                                    .inputType = INPUT_FORWARD,
+                                    .inputData = NULL
+                                },
+                                false
+                            );
                         }
                     } else if (pressed && press_value_unit < 0.5) {
                         press_readings++;

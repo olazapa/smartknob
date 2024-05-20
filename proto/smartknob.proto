@@ -64,7 +64,6 @@ message SmartKnobState {
      * to you; you probably want to be reading the top level values from the State message.
      */
     SmartKnobConfig config = 3;
-
     /**
      * Value that changes each time the knob is pressed. Does not change when a press is released.
      *
@@ -78,8 +77,19 @@ message SmartKnobState {
     uint32 press_nonce = 4 [(nanopb).int_size = IS_8];
 }
 
+message ViewConfig {
+    int32 view_type = 1;
+    string description = 2 [(nanopb).max_length = 40];
+    repeated MenuEntry menu_entries = 3 [(nanopb).max_count = 8];
+}
+
+message MenuEntry {
+    string description = 1 [(nanopb).max_length = 19];
+    string icon = 2 [(nanopb).max_length = 3];
+}
 
 message SmartKnobConfig {
+    ViewConfig view_config = 1;
     /**
      * Set the integer position.
      *
@@ -90,7 +100,7 @@ message SmartKnobConfig {
      * change to 5 was previously handled. If you need to force a position update, see
      * position_nonce.
      */
-    int32 position = 1;
+    int32 position = 2;
 
     /**
      * Set the fractional position. Typical range: (-snap_point, snap_point).
@@ -103,7 +113,7 @@ message SmartKnobConfig {
      * Note: idempotency implications noted in the documentation for `position` apply here
      * as well
      */
-    float sub_position_unit = 2;
+    float sub_position_unit = 3;
     
     /**
      * Position is normally only applied when it changes, but sometimes it's desirable
@@ -112,10 +122,10 @@ message SmartKnobConfig {
      *
      * NOTE: Must be < 256
      */
-    uint32 position_nonce = 3 [(nanopb).int_size = IS_8];
+    uint32 position_nonce = 4 [(nanopb).int_size = IS_8];
 
     /** Minimum position allowed. */
-    int32 min_position = 4;
+    int32 min_position = 5;
 
     /**
      * Maximum position allowed.
@@ -124,10 +134,11 @@ message SmartKnobConfig {
      *
      * If this is less than min_position, bounds will be disabled.
      */
-    int32 max_position = 5;
+    int32 max_position = 6;
+    bool infinite_scroll = 7;
 
     /** The angular "width" of each position/detent, in radians. */
-    float position_width_radians = 6;
+    float position_width_radians = 8;
 
     /**
      * Strength of detents to apply. Typical range: [0, 1].
@@ -136,7 +147,7 @@ message SmartKnobConfig {
      *
      * Values greater than 1 are not recommended and may lead to unstable behavior.
      */
-    float detent_strength_unit = 7;
+    float detent_strength_unit = 9;
 
     /**
      * Strength of endstop torque to apply at min/max bounds. Typical range: [0, 1].
@@ -147,7 +158,7 @@ message SmartKnobConfig {
      *
      * Values greater than 1 are not recommended and may lead to unstable behavior.
      */
-    float endstop_strength_unit = 8;
+    float endstop_strength_unit = 10;
 
     /**
      * Fractional (sub-position) threshold where the position will increment/decrement.
@@ -155,16 +166,7 @@ message SmartKnobConfig {
      *
      * This defines how hysteresis is applied to positions, which is why values >
      */
-    float snap_point = 9;
-
-    /**
-     * Arbitrary 50-byte string representing this "config". This can be used to identify major
-     * config/mode changes. The value will be echoed back to the host via a future State's
-     * embedded config field so the host can use this value to determine the mode that was
-     * in effect at the time of the State snapshot instead of having to infer it from the
-     * other config fields.
-     */
-    string text = 10 [(nanopb).max_length = 50];
+    float snap_point = 11;
 
     /**
      * For a "magnetic" detent mode - where not all positions should have detents - this
@@ -182,7 +184,7 @@ message SmartKnobConfig {
      * since multiple detent positions can be sent in advance; a full round-trip Config-State
      * isn't needed between each detent in order to keep up.
      */
-    repeated int32 detent_positions = 11 [(nanopb).max_count = 5];
+    repeated int32 detent_positions = 12 [(nanopb).max_count = 5];
 
     /**
      * Advanced feature for shifting the defined snap_point away from the center (position 0)
@@ -191,13 +193,13 @@ message SmartKnobConfig {
      * This can be used to create detents that will hold the position when carefully released,
      * but can be easily disturbed to return "home" towards position 0.
      */
-    float snap_point_bias = 12;
+    float snap_point_bias = 13;
 
     /**
      * Hue (0-255) for all 8 ring LEDs, if supported. Note: this will likely be replaced
      * with more configurability in a future protocol version.
      */
-    int32 led_hue = 13 [(nanopb).int_size = IS_16];
+    int32 led_hue = 14 [(nanopb).int_size = IS_16];
 }
 
 message RequestState {}

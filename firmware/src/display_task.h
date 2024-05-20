@@ -4,13 +4,15 @@
 
 #include <Arduino.h>
 #include <TFT_eSPI.h>
+#include <vector>
 
 #include "logger.h"
 #include "proto_gen/smartknob.pb.h"
 #include "task.h"
 #include "lvgl.h"
+#include "input_type.h"
 
-#define DISP_BUF_SIZE (TFT_WIDTH * 200) // Larger buffer for LVGL allows for more stable FPS - if memory is a concern buffer size can be reduced at the cost of FPS 
+#define DISP_BUF_SIZE (TFT_WIDTH * 220) // Larger buffer for LVGL allows for more stable FPS - if memory is a concern buffer size can be reduced at the cost of FPS 
 
 class DisplayTask : public Task<DisplayTask> {
     friend class Task<DisplayTask>; // Allow base Task to invoke protected run()
@@ -20,30 +22,32 @@ class DisplayTask : public Task<DisplayTask> {
         ~DisplayTask();
 
         QueueHandle_t getKnobStateQueue();
+        SemaphoreHandle_t * i2c_mutex_;
 
+        void setListener(QueueHandle_t queue);
+        void publish(userInput_t user_input);
         void flushDisplay(lv_disp_drv_t *disp, const lv_area_t *area, lv_color_t *color_p);
         void setBrightness(uint16_t brightness);
         void setLogger(Logger* logger);
+        void setI2CMutex(SemaphoreHandle_t * mutex);
+        static void button_event_cb(lv_event_t * event);
 
     protected:
         void run();
 
     private:
         lv_obj_t * screen;
-        lv_obj_t * label_cur_pos;
-        lv_obj_t * label_desc;
-        lv_obj_t * arc;
-        lv_obj_t * arc_dot;
-        lv_obj_t * line_left_bound;
-        lv_obj_t * line_right_bound;
 
         QueueHandle_t knob_state_queue_;
 
-        PB_SmartKnobState state_;
+        QueueHandle_t listener_;
+        PB_SmartKnobState state_ = {};
+        PB_SmartKnobState latest_state_;
         SemaphoreHandle_t mutex_;
         uint16_t brightness_;
         Logger* logger_;
         void log(const char* msg);
+        void clear_screen();
 };
 
 #else

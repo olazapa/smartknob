@@ -12,6 +12,13 @@
 #include "serial/uart_stream.h"
 #include "task.h"
 
+#include "input_type.h"
+#include "pages/main_menu_page.h"
+#include "pages/more_page.h"
+#include "pages/lights_page.h"
+#include "pages/demo_page.h"
+#include "pages/settings_page.h"
+
 #ifndef SK_FORCE_UART_STREAM
     #define SK_FORCE_UART_STREAM 0
 #endif
@@ -22,6 +29,8 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
     public:
         InterfaceTask(const uint8_t task_core, MotorTask& motor_task, DisplayTask* display_task);
         virtual ~InterfaceTask();
+
+        SemaphoreHandle_t * i2c_mutex;
 
         void log(const char* msg) override;
         void setConfiguration(Configuration* configuration);
@@ -40,6 +49,7 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
         char buf_[128];
 
         SemaphoreHandle_t mutex_;
+        SemaphoreHandle_t i2c_mutex_;
         Configuration* configuration_ = nullptr; // protected by mutex_
 
         PB_PersistentConfiguration configuration_value_;
@@ -58,10 +68,19 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
 
         QueueHandle_t log_queue_;
         QueueHandle_t knob_state_queue_;
+        QueueHandle_t user_input_queue_;
         SerialProtocolPlaintext plaintext_protocol_;
         SerialProtocolProtobuf proto_protocol_;
 
-        void changeConfig(bool next);
+        MainMenuPage main_menu_page_;
+        MorePage more_page_;
+        LightsPage lights_page_;
+        DemoPage demo_page_;
+        SettingsPage settings_page_;
+
+        userInput_t user_input_;
+
+        void setUserInput(userInput_t user_input, bool playHapticts);
         void updateHardware();
         void publishState();
         void applyConfig(PB_SmartKnobConfig& config, bool from_remote);

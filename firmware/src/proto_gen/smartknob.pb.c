@@ -9,7 +9,7 @@
 PB_BIND(PB_FromSmartKnob, PB_FromSmartKnob, 2)
 
 
-PB_BIND(PB_ToSmartknob, PB_ToSmartknob, AUTO)
+PB_BIND(PB_ToSmartknob, PB_ToSmartknob, 2)
 
 
 PB_BIND(PB_Ack, PB_Ack, AUTO)
@@ -18,10 +18,16 @@ PB_BIND(PB_Ack, PB_Ack, AUTO)
 PB_BIND(PB_Log, PB_Log, 2)
 
 
-PB_BIND(PB_SmartKnobState, PB_SmartKnobState, AUTO)
+PB_BIND(PB_SmartKnobState, PB_SmartKnobState, 2)
 
 
-PB_BIND(PB_SmartKnobConfig, PB_SmartKnobConfig, AUTO)
+PB_BIND(PB_ViewConfig, PB_ViewConfig, AUTO)
+
+
+PB_BIND(PB_MenuEntry, PB_MenuEntry, AUTO)
+
+
+PB_BIND(PB_SmartKnobConfig, PB_SmartKnobConfig, 2)
 
 
 PB_BIND(PB_RequestState, PB_RequestState, AUTO)

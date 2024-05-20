@@ -22,7 +22,7 @@ static const float IDLE_CORRECTION_MAX_ANGLE_RAD = 5 * PI / 180;
 static const float IDLE_CORRECTION_RATE_ALPHA = 0.0005;
 
 
-MotorTask::MotorTask(const uint8_t task_core, Configuration& configuration) : Task("Motor", 4000, 1, task_core), configuration_(configuration) {
+MotorTask::MotorTask(const uint8_t task_core, Configuration& configuration) : Task("Motor", 4100, 1, task_core), configuration_(configuration) {
     queue_ = xQueueCreate(5, sizeof(Command));
     assert(queue_ != NULL);
 }
@@ -237,14 +237,22 @@ void MotorTask::run() {
         float snap_point_radians_increase = -snap_point_radians + (current_position >= 0 ? -bias_radians : bias_radians); 
 
         int32_t num_positions = config.max_position - config.min_position + 1;
-        if (angle_to_detent_center > snap_point_radians_decrease && (num_positions <= 0 || current_position > config.min_position)) {
+        if (angle_to_detent_center > snap_point_radians_decrease && (num_positions <= 0 || current_position > config.min_position || config.infinite_scroll)) {
             current_detent_center += config.position_width_radians;
             angle_to_detent_center -= config.position_width_radians;
             current_position--;
-        } else if (angle_to_detent_center < snap_point_radians_increase && (num_positions <= 0 || current_position < config.max_position)) {
+        } else if (angle_to_detent_center < snap_point_radians_increase && (num_positions <= 0 || current_position < config.max_position || config.infinite_scroll)) {
             current_detent_center -= config.position_width_radians;
             angle_to_detent_center += config.position_width_radians;
             current_position++;
+        }
+
+        if (config.infinite_scroll) {
+            if (current_position > config.max_position) {
+                current_position = config.min_position;
+            } else if (current_position < config.min_position) {
+                current_position = config.max_position;
+            }
         }
 
         latest_sub_position_unit = -angle_to_detent_center / config.position_width_radians;
@@ -254,7 +262,7 @@ void MotorTask::run() {
             fmaxf(-config.position_width_radians*DEAD_ZONE_DETENT_PERCENT, -DEAD_ZONE_RAD),
             fminf(config.position_width_radians*DEAD_ZONE_DETENT_PERCENT, DEAD_ZONE_RAD));
 
-        bool out_of_bounds = num_positions > 0 && ((angle_to_detent_center > 0 && current_position == config.min_position) || (angle_to_detent_center < 0 && current_position == config.max_position));
+        bool out_of_bounds = num_positions > 0 && !config.infinite_scroll && ((angle_to_detent_center > 0 && current_position == config.min_position) || (angle_to_detent_center < 0 && current_position == config.max_position));
         motor.PID_velocity.limit = 10; //out_of_bounds ? 10 : 3;
         motor.PID_velocity.P = out_of_bounds ? config.endstop_strength_unit * 4 : config.detent_strength_unit * 4;
 
