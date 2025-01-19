@@ -59,6 +59,8 @@ class InterfaceTask : public Task<InterfaceTask>, public Logger {
 
         uint8_t strain_calibration_step_ = 0;
         int32_t strain_reading_ = 0;
+        uint16_t strain_long_press_time_ = 600;
+        TickType_t startTime;
 
         SerialProtocol* current_protocol_ = nullptr;
         bool remote_controlled_ = false;

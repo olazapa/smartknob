@@ -23,6 +23,10 @@ ConnectivityTask::ConnectivityTask(const uint8_t task_core) : Task("Connectivity
 
 ConnectivityTask::~ConnectivityTask() {}
 
+void ConnectivityTask::setConfigCallback(std::function<void(PB_SmartKnobConfig&)> callback) {
+    configCallback_ = callback;
+}
+
 void sendMqttKnobStateDiscoveryMsg() {
     DynamicJsonDocument payload(1024);
     char buffer[512];
@@ -59,8 +63,7 @@ void ConnectivityTask::run() {
         if (xQueueReceive(queue_, &message, 0) == pdTRUE) {
             StaticJsonDocument<200> payload;
             char buffer[256];
-            payload["trigger_name"] = message.trigger_name;
-            payload["trigger_value"] = message.trigger_value;
+            payload[message.trigger_name] = message.trigger_value;
             size_t n = serializeJson(payload, buffer);
 
             action_feed.publish(buffer);

@@ -40,7 +40,9 @@ InterfaceTask::InterfaceTask(const uint8_t task_core, MotorTask& motor_task, Dis
         }),
         main_menu_page_(),
         more_page_(),
-        lights_page_(connectivity_task_),
+        lights_page_(connectivity_task_, [this] (PB_SmartKnobConfig& config) {
+            applyConfig(config, false);
+        }),
         settings_page_([this] () {
             motor_task_.runCalibration();
         }),
@@ -270,6 +272,7 @@ void InterfaceTask::updateHardware() {
     #endif
 
     static bool pressed;
+    static bool long_pressed;
     #if SK_STRAIN
         if (scale.wait_ready_timeout(100)) {
             strain_reading_ = scale.read();
@@ -285,14 +288,20 @@ void InterfaceTask::updateHardware() {
                 press_value_unit = lerp(strain_reading_, configuration_value_.strain.idle_value, configuration_value_.strain.idle_value + configuration_value_.strain.press_delta, 0, 1);
 
                 // Ignore readings that are way out of expected bounds
-                if (-1 < press_value_unit && press_value_unit < 2) {
+                if (-1 < press_value_unit) {
                     static uint8_t press_readings;
                     if (!pressed && press_value_unit > 1) {
                         press_readings++;
                         if (press_readings > 2) {
                             motor_task_.playHaptic(true);
                             pressed = true;
+                            long_pressed = false;
+                            startTime = xTaskGetTickCount();
                             press_count_++;
+                        }
+                    } else if (pressed && press_value_unit < 0.5) {
+                        press_readings++;
+                        if (press_readings > 2) {
                             publishState();
                             setUserInput(
                                 {
@@ -301,15 +310,29 @@ void InterfaceTask::updateHardware() {
                                 },
                                 false
                             );
-                        }
-                    } else if (pressed && press_value_unit < 0.5) {
-                        press_readings++;
-                        if (press_readings > 2) {
                             motor_task_.playHaptic(false);
-                            pressed = false;
+                            //press_readings = 0;
+                        }
+                        pressed = false;
+                    } else if (pressed && !long_pressed) {
+                        press_readings++;
+                        TickType_t duration = xTaskGetTickCount() - startTime;
+                        if (press_readings > 2 && duration > strain_long_press_time_) {
+                            publishState();
+                            setUserInput(
+                                {
+                                    .inputType = INPUT_BACK,
+                                    .inputData = NULL
+                                },
+                                false
+                            );
+                            motor_task_.playHaptic(false);
+                            long_pressed = true;
+                            //press_readings = 0;
                         }
                     } else {
-                        press_readings = 0;
+                        press_readings=0;
+
                     }
                 }
             }
